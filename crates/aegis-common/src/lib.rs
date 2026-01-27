@@ -4,6 +4,7 @@ use serde::Deserialize;
 pub struct Config {
     pub proxy: ProxyConfig,
     pub limit: LimitConfig,
+    pub metrics: MetricsConfig,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -18,4 +19,10 @@ pub struct LimitConfig {
     pub refill_rate: f64,
     pub cleanup_interval_secs: u64,
     pub ip_idle_timeout_secs: u64,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct MetricsConfig {
+    pub enabled: bool,
+    pub port: u16,
 }

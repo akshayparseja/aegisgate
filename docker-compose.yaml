@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  aegis-proxy:
+    build: .
+    image: aegisgate-proxy:latest
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    volumes:
+      - ./config/aegis_config.yaml:/app/config/aegis_config.yaml
+    environment:
+      - RUST_LOG=info
+    # Use host-gateway to reach your standalone EMQX on localhost
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: always
+
+  mqtt-broker:
+    image: emqx/emqx:5.7
+    profiles:
+      - debug-broker
+    ports:
+      - "1883:1883"
+      - "18083:18083"
+    deploy:
+      resources:
+        limits:
+          memory: 512M

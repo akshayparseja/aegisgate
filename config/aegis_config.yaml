@@ -1,9 +1,15 @@
 proxy:
   listen_address: "0.0.0.0:8080"
-  target_address: "127.0.0.1:1883"
+  # - Use if running via docker
+  target_address: "host.docker.internal:1883"
+  # target_address: 127.0.0.1:1883
 
 limit:
   max_tokens: 5.0
   refill_rate: 1.0
   cleanup_interval_secs: 60
   ip_idle_timeout_secs: 60
+
+metrics:
+  enabled: true
+  port: 9090
