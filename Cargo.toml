@@ -1,0 +1,11 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/aegis-proxy",
+    "crates/aegis-common",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["AegisGate Team"]

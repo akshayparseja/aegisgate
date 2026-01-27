@@ -1,0 +1,21 @@
+# --- Rust Specific ---
+/target
+**/*.rs.bk
+Cargo.lock
+
+# --- Environment and Secrets ---
+.env
+*.pem
+*.key
+*.crt
+
+# --- OS / IDE Specific ---
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- AegisGate Specific ---
+logs/
+*.log
