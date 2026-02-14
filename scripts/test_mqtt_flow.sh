@@ -1,49 +1,77 @@
-#!/bin/bash
-# Professional End-to-End MQTT Verification with Readiness Check
+#!/usr/bin/env bash
+set -euo pipefail
 
-PROXY_HOST="127.0.0.1"
-PROXY_PORT=8080
-HEALTH_PORT=9090
-TOPIC="aegis/test"
-MESSAGE="Production_Ready_Check_$(date +%s)"
+# End-to-end MQTT flow test using mosquitto clients.
+# This script publishes a message via the proxy and verifies a subscriber receives it.
+#
+# Configurable via environment variables:
+#  - PROXY_HOST (default 127.0.0.1)
+#  - PROXY_PORT (default 8080)
+#  - HEALTH_PORT (default 9090)
+#  - TOPIC (default aegis/test)
+#  - MESSAGE (default AegisGate_Flow_Check_<timestamp>)
+#  - TIMEOUT (seconds to wait for health; default 15)
+
+PROXY_HOST="${PROXY_HOST:-127.0.0.1}"
+PROXY_PORT="${PROXY_PORT:-8080}"
+HEALTH_PORT="${HEALTH_PORT:-9090}"
+TOPIC="${TOPIC:-aegis/test}"
+MESSAGE="${MESSAGE:-AegisGate_Flow_Check_$(date +%s)}"
+TIMEOUT="${TIMEOUT:-15}"
 
 echo "--- Starting AegisGate Flow Test ---"
+echo "Proxy: ${PROXY_HOST}:${PROXY_PORT}  Health: ${PROXY_HOST}:${HEALTH_PORT}  Topic: ${TOPIC}"
+echo
 
-# 1. Readiness Check: Wait for Proxy to be actually 'Healthy'
-echo "Waiting for AegisGate to be healthy..."
-MAX_RETRIES=10
-COUNT=0
-while ! curl -s http://$PROXY_HOST:$HEALTH_PORT/health | grep -q "OK"; do
+# Ensure required tools are available
+for cmd in mosquitto_pub mosquitto_sub curl; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "Error: required command '$cmd' not found. Please install mosquitto-clients and curl."
+        exit 2
+    fi
+done
+
+# 1. Readiness Check: Wait for Proxy to be healthy
+echo "Waiting for AegisGate to be healthy (timeout ${TIMEOUT}s)..."
+count=0
+until curl -s "http://${PROXY_HOST}:${HEALTH_PORT}/health" | grep -q "OK"; do
     sleep 1
-    COUNT=$((COUNT+1))
-    if [ $COUNT -ge $MAX_RETRIES ]; then
+    count=$((count+1))
+    if [ $count -ge $TIMEOUT ]; then
         echo "Error: Timeout waiting for AegisGate health check."
         exit 1
     fi
 done
 
 # 2. Start a subscriber in the background
-# We use -W 5 to timeout if no message is received within 5 seconds
-mosquitto_sub -h $PROXY_HOST -p $PROXY_PORT -t $TOPIC -C 1 -W 5 > /tmp/aegis_received.txt &
+TMPFILE="$(mktemp /tmp/aegis_received.XXXXXX)"
+cleanup() {
+    rm -f "$TMPFILE"
+}
+trap cleanup EXIT
+
+echo "Starting subscriber..."
+# -C 1 => exit after receiving 1 message; -W 5 => wait up to 5 seconds for first message
+mosquitto_sub -h "$PROXY_HOST" -p "$PROXY_PORT" -t "$TOPIC" -C 1 -W 5 > "$TMPFILE" &
 SUB_PID=$!
 
 # Give the subscriber a moment to establish the TCP session
 sleep 1
 
 # 3. Publish a message through the proxy
-echo "Publishing to $TOPIC via Proxy..."
-mosquitto_pub -h $PROXY_HOST -p $PROXY_PORT -t $TOPIC -m "$MESSAGE"
+echo "Publishing message to ${TOPIC} via proxy..."
+mosquitto_pub -h "$PROXY_HOST" -p "$PROXY_PORT" -t "$TOPIC" -m "$MESSAGE"
 
-# 4. Wait for the subscriber to finish
-wait $SUB_PID
+# 4. Wait for the subscriber to finish (it will exit after 1 message or timeout)
+wait "$SUB_PID" || true
 
 # 5. Verify results
-RECEIVED=$(cat /tmp/aegis_received.txt)
-if [ "$RECEIVED" == "$MESSAGE" ]; then
+RECEIVED="$(cat "$TMPFILE" 2>/dev/null || true)"
+if [ "$RECEIVED" = "$MESSAGE" ]; then
     echo "SUCCESS: Message forwarded correctly."
-    rm /tmp/aegis_received.txt
     exit 0
 else
     echo "FAILURE: Received '$RECEIVED' but expected '$MESSAGE'"
+    echo "Proxy logs and metrics may help diagnose the issue."
     exit 1
 fi

@@ -64,6 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let limit_cfg = Arc::new(config.limit.clone());
     let target_addr = config.proxy.target_address.clone();
     let master_token = CancellationToken::new();
+    let features = config.features.clone();
 
     if config.metrics.enabled {
         let port = config.metrics.port;
@@ -72,16 +73,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    let janitor_cfg = Arc::clone(&limit_cfg);
-    let janitor_token = master_token.clone();
-    tokio::spawn(async move {
-        tokio::select! {
-            _ = start_cleanup_task(janitor_cfg) => {},
-            _ = janitor_token.cancelled() => {
-                info!("Janitor task shutting down");
+    if features.enable_rate_limiter {
+        let janitor_cfg = Arc::clone(&limit_cfg);
+        let janitor_token = master_token.clone();
+        tokio::spawn(async move {
+            tokio::select! {
+                _ = start_cleanup_task(janitor_cfg) => {},
+                _ = janitor_token.cancelled() => {
+                    info!("Janitor task shutting down");
+                }
             }
-        }
-    });
+        });
+    }
 
     let listener = TcpListener::bind(&config.proxy.listen_address).await?;
     info!(listen_addr = %config.proxy.listen_address, "AegisGate started");
@@ -92,10 +95,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Ok((socket, addr)) = res {
                     let l_cfg = Arc::clone(&limit_cfg);
                     let target = target_addr.clone();
+                    let mqtt_inspect = features.enable_mqtt_inspection;
+                    let rate_limiter_enabled = features.enable_rate_limiter;
 
-                    if check_rate_limit(addr.ip(), &l_cfg) {
+                    let allowed = !rate_limiter_enabled || check_rate_limit(addr.ip(), &l_cfg);
+
+                    if allowed {
+                        let full_inspect = features.enable_mqtt_full_inspection;
                         tokio::spawn(async move {
-                            if let Err(e) = handle_connection(socket, target).await {
+                            if let Err(e) = handle_connection(socket, target, mqtt_inspect, full_inspect).await {
                                 error!(client_ip = %addr.ip(), error = %e, "Connection error");
                             }
                         });

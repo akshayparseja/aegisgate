@@ -10,7 +10,8 @@ services:
     volumes:
       - ./config/aegis_config.yaml:/app/config/aegis_config.yaml
     environment:
-      - RUST_LOG=info
+      - RUST_LOG=debug
+      - RUST_BACKTRACE=1
     # Use host-gateway to reach your standalone EMQX on localhost
     extra_hosts:
       - "host.docker.internal:host-gateway"

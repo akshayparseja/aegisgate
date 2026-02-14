@@ -12,7 +12,13 @@ lazy_static! {
     .expect("metric can be created");
     pub static ref REJECTED_CONNECTIONS: IntCounter = IntCounter::new(
         "aegis_rejected_connections_total",
-        "Total number of connections rejected by protocol validation"
+        "Total number of connections rejected by rate limiting"
+    )
+    .expect("metric can be created");
+    /// Count of connections rejected due to protocol validation (malformed packets, invalid CONNECT)
+    pub static ref PROTOCOL_REJECTIONS: IntCounter = IntCounter::new(
+        "aegis_protocol_rejections_total",
+        "Total number of connections rejected by protocol (MQTT) validation"
     )
     .expect("metric can be created");
 }
@@ -20,6 +26,7 @@ lazy_static! {
 pub fn register_metrics() {
     let _ = REGISTRY.register(Box::new(CONNECTION_GAUGE.clone()));
     let _ = REGISTRY.register(Box::new(REJECTED_CONNECTIONS.clone()));
+    let _ = REGISTRY.register(Box::new(PROTOCOL_REJECTIONS.clone()));
 }
 
 fn update_metrics() {

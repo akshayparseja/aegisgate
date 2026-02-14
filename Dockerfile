@@ -11,15 +11,13 @@ COPY Cargo.toml Cargo.lock ./
 COPY crates/aegis-common/Cargo.toml crates/aegis-common/
 COPY crates/aegis-proxy/Cargo.toml crates/aegis-proxy/
 
-RUN mkdir -p crates/aegis-common/src && echo "pub fn main() {}" > crates/aegis-common/src/lib.rs
-RUN mkdir -p crates/aegis-proxy/src && echo "fn main() {}" > crates/aegis-proxy/src/main.rs
-
-RUN cargo build --release
-
+# Copy full crate sources and configuration before building so cargo sees the real sources
+# and dependency graph within the builder. This avoids placeholder-source caching issues
+# and ensures the image builds reliably.
 COPY crates/ ./crates/
 COPY config/ ./config/
 
-RUN rm -f target/release/deps/aegis*
+# Build the release binary
 RUN cargo build --release
 
 FROM debian:bookworm-slim

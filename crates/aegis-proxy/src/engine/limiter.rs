@@ -42,7 +42,6 @@ pub fn check_rate_limit(addr: IpAddr, config: &LimitConfig) -> bool {
     }
 }
 
-/// The Janitor now takes the global config to know its schedule
 pub async fn start_cleanup_task(config: Arc<LimitConfig>) {
     let mut interval = tokio::time::interval(Duration::from_secs(config.cleanup_interval_secs));
     let timeout = Duration::from_secs(config.ip_idle_timeout_secs);

@@ -13,3 +13,19 @@ limit:
 metrics:
   enabled: true
   port: 9090
+
+features:
+  # Toggle the MQTT inspection/CONNECT validation step
+  enable_mqtt_inspection: false
+  # Toggle full MQTT Remaining Length + CONNECT field validation (disabled for transparent-proxy testing)
+  enable_mqtt_full_inspection: false
+  # Toggle HTTP parsing and HTTP-specific protections (e.g., Slowloris detection)
+  enable_http_inspection: false
+  # Toggle Slowloris protection logic (header timeouts / per-connection checks)
+  enable_slowloris_protection: false
+  # Toggle per-IP token bucket rate limiting
+  enable_rate_limiter: true
+  # Toggle eBPF fast-path integration (requires additional components)
+  enable_ebpf: false
+  # Toggle ML-based anomaly detection / inference pipeline
+  enable_ml: false
