@@ -21,12 +21,26 @@ lazy_static! {
         "Total number of connections rejected by protocol (MQTT) validation"
     )
     .expect("metric can be created");
+    /// Count of connections rejected due to HTTP detection (wrong protocol)
+    pub static ref HTTP_REJECTIONS: IntCounter = IntCounter::new(
+        "aegis_http_rejections_total",
+        "Total number of connections rejected due to HTTP protocol detection"
+    )
+    .expect("metric can be created");
+    /// Count of connections rejected due to Slowloris attack detection
+    pub static ref SLOWLORIS_REJECTIONS: IntCounter = IntCounter::new(
+        "aegis_slowloris_rejections_total",
+        "Total number of connections rejected due to Slowloris attack detection"
+    )
+    .expect("metric can be created");
 }
 
 pub fn register_metrics() {
     let _ = REGISTRY.register(Box::new(CONNECTION_GAUGE.clone()));
     let _ = REGISTRY.register(Box::new(REJECTED_CONNECTIONS.clone()));
     let _ = REGISTRY.register(Box::new(PROTOCOL_REJECTIONS.clone()));
+    let _ = REGISTRY.register(Box::new(HTTP_REJECTIONS.clone()));
+    let _ = REGISTRY.register(Box::new(SLOWLORIS_REJECTIONS.clone()));
 }
 
 fn update_metrics() {

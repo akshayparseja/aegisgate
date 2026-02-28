@@ -19,8 +19,17 @@ TOPIC="${TOPIC:-aegis/test}"
 MESSAGE="${MESSAGE:-AegisGate_Flow_Check_$(date +%s)}"
 TIMEOUT="${TIMEOUT:-15}"
 
+# Explicit client IDs to avoid broker anonymous-client rejections during tests.
+# These can be overridden by setting the env vars `SUB_CLIENT_ID` and `PUB_CLIENT_ID`.
+SUB_CLIENT_ID="${SUB_CLIENT_ID:-aegisgate_sub_$(date +%s)}"
+PUB_CLIENT_ID="${PUB_CLIENT_ID:-aegisgate_pub_$(date +%s)}"
+
+# How long the subscriber should wait for the first message (mosquitto_sub -W).
+# Increase from the previous hardcoded 5s to allow more time for network/broker response.
+SUB_WAIT="${SUB_WAIT:-10}"
+
 echo "--- Starting AegisGate Flow Test ---"
-echo "Proxy: ${PROXY_HOST}:${PROXY_PORT}  Health: ${PROXY_HOST}:${HEALTH_PORT}  Topic: ${TOPIC}"
+echo "Proxy: ${PROXY_HOST}:${PROXY_PORT}  Health: ${PROXY_HOST}:${HEALTH_PORT}  Topic: ${TOPIC}  SubID: ${SUB_CLIENT_ID}  PubID: ${PUB_CLIENT_ID}"
 echo
 
 # Ensure required tools are available
@@ -52,7 +61,7 @@ trap cleanup EXIT
 
 echo "Starting subscriber..."
 # -C 1 => exit after receiving 1 message; -W 5 => wait up to 5 seconds for first message
-mosquitto_sub -h "$PROXY_HOST" -p "$PROXY_PORT" -t "$TOPIC" -C 1 -W 5 > "$TMPFILE" &
+mosquitto_sub -h "$PROXY_HOST" -p "$PROXY_PORT" -t "$TOPIC" -C 1 -W "$SUB_WAIT" -i "$SUB_CLIENT_ID" > "$TMPFILE" &
 SUB_PID=$!
 
 # Give the subscriber a moment to establish the TCP session
@@ -60,7 +69,7 @@ sleep 1
 
 # 3. Publish a message through the proxy
 echo "Publishing message to ${TOPIC} via proxy..."
-mosquitto_pub -h "$PROXY_HOST" -p "$PROXY_PORT" -t "$TOPIC" -m "$MESSAGE"
+mosquitto_pub -h "$PROXY_HOST" -p "$PROXY_PORT" -t "$TOPIC" -m "$MESSAGE" -i "$PUB_CLIENT_ID"
 
 # 4. Wait for the subscriber to finish (it will exit after 1 message or timeout)
 wait "$SUB_PID" || true

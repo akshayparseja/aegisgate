@@ -3,6 +3,10 @@ proxy:
   # - Use if running via docker
   target_address: "host.docker.internal:1883"
   # target_address: 127.0.0.1:1883
+  # Optional: maximum Remaining Length (bytes) accepted when performing full
+  # CONNECT inspection. If omitted, the proxy will fall back to a safe default
+  # (64 KiB).
+  max_connect_remaining: 65536
 
 limit:
   max_tokens: 5.0
@@ -10,19 +14,46 @@ limit:
   cleanup_interval_secs: 60
   ip_idle_timeout_secs: 60
 
+slowloris_protection:
+  # Base layer: protocol-agnostic timeouts (applies to ALL connections)
+  # Time to receive first packet after connection accepted
+  first_packet_timeout_ms: 30000
+  # Max idle time between ANY bytes (allows slow connections, prevents artificial delays)
+  packet_idle_timeout_ms: 10000
+  # Total timeout for connection until first valid complete packet received
+  connection_timeout_ms: 60000
+
+  # MQTT-specific overlays
+  # Max time to receive complete CONNECT packet
+  mqtt_connect_timeout_ms: 30000
+  # Max time to receive any other complete MQTT packet
+  mqtt_packet_timeout_ms: 60000
+
+  # HTTP-specific overlays
+  # Max time to receive complete HTTP request line + all headers
+  http_request_timeout_ms: 30000
+  # Max total size of HTTP headers
+  max_http_header_size: 8192
+  # Max number of HTTP headers
+  max_http_header_count: 100
+
+http_inspection:
+  # Max size of individual HTTP header line
+  max_header_line_size: 8192
+
 metrics:
   enabled: true
   port: 9090
 
 features:
   # Toggle the MQTT inspection/CONNECT validation step
-  enable_mqtt_inspection: false
-  # Toggle full MQTT Remaining Length + CONNECT field validation (disabled for transparent-proxy testing)
-  enable_mqtt_full_inspection: false
+  enable_mqtt_inspection: true
+  # Toggle full MQTT Remaining Length + CONNECT field validation (enabled for integration tests)
+  enable_mqtt_full_inspection: true
   # Toggle HTTP parsing and HTTP-specific protections (e.g., Slowloris detection)
-  enable_http_inspection: false
+  enable_http_inspection: true
   # Toggle Slowloris protection logic (header timeouts / per-connection checks)
-  enable_slowloris_protection: false
+  enable_slowloris_protection: true
   # Toggle per-IP token bucket rate limiting
   enable_rate_limiter: true
   # Toggle eBPF fast-path integration (requires additional components)

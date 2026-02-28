@@ -6,14 +6,11 @@ pub enum MqttPacketType {
     Malformed,
 }
 
-/// Decode MQTT Remaining Length field from the provided buffer.
+/// Decode the MQTT Remaining Length per the MQTT spec.
 ///
 /// Returns Ok((value, bytes_used)) on success, or Err(&'static str) on error:
-/// - "Incomplete" if the buffer ended before the remaining-length finished
-/// - "Malformed" if the encoding uses more than 4 bytes (protocol error)
-///
-/// MQTT Remaining Length is encoded in a variable-length scheme where each byte
-/// contributes 7 bits and the MSB is a continuation flag.
+/// - "Incomplete": buffer ended before the Remaining Length finished
+/// - "Malformed": encoding uses more than 4 bytes (protocol error)
 pub fn decode_remaining_length(buf: &[u8]) -> Result<(usize, usize), &'static str> {
     let mut multiplier: usize = 1;
     let mut value: usize = 0;

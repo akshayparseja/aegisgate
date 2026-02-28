@@ -1,11 +1,18 @@
+use crate::engine::http::{inspect_http, looks_like_http, HttpInspectionResult};
+use crate::engine::slowloris::read_with_idle_timeout;
 use crate::parser::mqtt::{self, MqttPacketType};
+use aegis_common::SlowlorisConfig;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpStream;
+use tokio::net::{tcp::OwnedWriteHalf, TcpStream};
 use tokio::time::{timeout, Duration};
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 pub static ACTIVE_CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
+
+/// Maximum Remaining Length cap is configurable at runtime via `ProxyConfig.max_connect_remaining`.
+/// The runtime-configured cap will be passed into the remaining-length reader; there is
+/// no hard-coded constant here so different deployments can tune the value as needed.
 
 struct ConnectionGuard;
 
@@ -22,167 +29,371 @@ impl Drop for ConnectionGuard {
     }
 }
 
-/// Handle a single client connection.
-///
-/// The `enable_mqtt_inspection` flag controls whether the handler performs
-/// lightweight MQTT CONNECT validation (peek + basic packet type check).
-/// When disabled, the handler acts as a transparent TCP proxy for the connection.
+/// Read one byte (fixed header) from the client with timeout.
+async fn read_fixed_header(
+    source: &mut TcpStream,
+) -> Result<u8, Box<dyn std::error::Error + Send + Sync>> {
+    let mut fixed = [0u8; 1];
+    match timeout(Duration::from_secs(3), source.read_exact(&mut fixed)).await {
+        Ok(Ok(_)) => Ok(fixed[0]),
+        Ok(Err(e)) => {
+            crate::metrics::PROTOCOL_REJECTIONS.inc();
+            Err(Box::new(e))
+        }
+        Err(_) => {
+            crate::metrics::PROTOCOL_REJECTIONS.inc();
+            Err("timeout reading fixed header".into())
+        }
+    }
+}
+
+/// Read Remaining Length bytes from the client, returning the bytes and decoded length.
+/// The caller provides `max_allowed` to guard against excessively large Remaining Lengths
+/// (prevents large allocations during CONNECT inspection).
+async fn read_remaining_length(
+    source: &mut TcpStream,
+    max_allowed: usize,
+) -> Result<(Vec<u8>, usize), Box<dyn std::error::Error + Send + Sync>> {
+    let mut rl_bytes: Vec<u8> = Vec::with_capacity(4);
+    for _ in 0..4 {
+        let mut b = [0u8; 1];
+        match timeout(Duration::from_secs(1), source.read_exact(&mut b)).await {
+            Ok(Ok(_)) => {
+                rl_bytes.push(b[0]);
+                match mqtt::decode_remaining_length(&rl_bytes) {
+                    Ok((v, _used)) => {
+                        // Enforce maximum allowed remaining length for CONNECT inspection.
+                        if v > max_allowed {
+                            crate::metrics::PROTOCOL_REJECTIONS.inc();
+                            warn!(
+                                "Rejected CONNECT: remaining length {} exceeds max allowed {}",
+                                v, max_allowed
+                            );
+                            return Err("remaining length too large".into());
+                        }
+                        return Ok((rl_bytes, v));
+                    }
+                    Err("Incomplete") => continue,
+                    Err(_) => {
+                        crate::metrics::PROTOCOL_REJECTIONS.inc();
+                        return Err("malformed remaining length".into());
+                    }
+                }
+            }
+            Ok(Err(e)) => {
+                crate::metrics::PROTOCOL_REJECTIONS.inc();
+                return Err(Box::new(e));
+            }
+            Err(_) => {
+                crate::metrics::PROTOCOL_REJECTIONS.inc();
+                return Err("timeout reading remaining length".into());
+            }
+        }
+    }
+    crate::metrics::PROTOCOL_REJECTIONS.inc();
+    Err("incomplete remaining length".into())
+}
+
+/// Read `len` bytes of payload from the client with timeout.
+async fn read_payload(
+    source: &mut TcpStream,
+    len: usize,
+) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
+    if len == 0 {
+        return Ok(Vec::new());
+    }
+    let mut payload = vec![0u8; len];
+    match timeout(Duration::from_secs(5), source.read_exact(&mut payload)).await {
+        Ok(Ok(_)) => Ok(payload),
+        Ok(Err(e)) => {
+            crate::metrics::PROTOCOL_REJECTIONS.inc();
+            Err(Box::new(e))
+        }
+        Err(_) => {
+            crate::metrics::PROTOCOL_REJECTIONS.inc();
+            Err("timeout reading payload".into())
+        }
+    }
+}
+
+/// Minimal CONNECT variable-header validation.
+fn validate_connect_variable_header(payload: &[u8]) -> bool {
+    payload.len() >= 6 && payload[0] == 0x00 && payload[1] == 0x04 && &payload[2..6] == b"MQTT"
+}
+
+/// Connect to backend broker with timeout.
+async fn connect_backend(
+    target_addr: &str,
+    client_peer: &str,
+) -> Result<TcpStream, Box<dyn std::error::Error + Send + Sync>> {
+    debug!(
+        "Attempting backend connect to {} for client {}",
+        target_addr, client_peer
+    );
+    match timeout(Duration::from_secs(5), TcpStream::connect(target_addr)).await {
+        Ok(stream) => {
+            let s = stream?;
+            debug!(
+                "Successfully connected to backend {} for client {}",
+                target_addr, client_peer
+            );
+            Ok(s)
+        }
+        Err(_) => {
+            warn!(
+                "Could not connect to backend at {} (connect timeout) for client {}",
+                target_addr, client_peer
+            );
+            Err("backend connect timeout".into())
+        }
+    }
+}
+
+/// Forward initial bytes (already-consumed CONNECT frame) to backend.
+async fn forward_initial_bytes(
+    target_write: &mut OwnedWriteHalf,
+    initial_bytes: &[u8],
+    target_addr: &str,
+    client_peer: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    if initial_bytes.is_empty() {
+        return Ok(());
+    }
+    let preview: String = initial_bytes
+        .iter()
+        .take(16)
+        .map(|b| format!("{:02x}", b))
+        .collect::<Vec<_>>()
+        .join(" ");
+    debug!(
+        "Forwarding {} initial bytes to backend {} for client {} (preview: {})",
+        initial_bytes.len(),
+        target_addr,
+        client_peer,
+        preview
+    );
+    match timeout(
+        Duration::from_secs(3),
+        target_write.write_all(initial_bytes),
+    )
+    .await
+    {
+        Ok(Ok(_)) => {
+            debug!(
+                "Successfully forwarded {} initial bytes to backend {} for client {}",
+                initial_bytes.len(),
+                target_addr,
+                client_peer
+            );
+            Ok(())
+        }
+        Ok(Err(e)) => {
+            warn!(
+                "Error writing initial CONNECT bytes to backend {} for client {}: {}",
+                target_addr, client_peer, e
+            );
+            debug!(
+                "Initial bytes length: {}, preview: {}",
+                initial_bytes.len(),
+                preview
+            );
+            Err(Box::new(e))
+        }
+        Err(_) => {
+            warn!(
+                "Timeout writing initial CONNECT bytes to backend {} for client {}",
+                target_addr, client_peer
+            );
+            debug!(
+                "Initial bytes length: {}, preview: {}",
+                initial_bytes.len(),
+                preview
+            );
+            Err("timeout writing initial bytes".into())
+        }
+    }
+}
+
+/// Handle a single client connection. Supports optional MQTT inspection (lightweight or full),
+/// HTTP inspection, and Slowloris protection.
 pub async fn handle_connection(
     mut source: TcpStream,
     target_addr: String,
     mqtt_inspect: bool,
     mqtt_full_inspect: bool,
+    http_inspect: bool,
+    slowloris_protect: bool,
+    max_connect_remaining: usize,
+    slowloris_config: SlowlorisConfig,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let _guard = ConnectionGuard::new();
-    // Buffer to hold any bytes already consumed from the client (e.g. CONNECT fixed header,
-    // Remaining Length bytes, and the CONNECT payload) so we can forward them to the backend
-    // after establishing the backend connection.
+
+    let client_peer = source
+        .peer_addr()
+        .map(|a| a.to_string())
+        .unwrap_or_else(|_| "<unknown>".to_string());
+
     let mut initial_bytes: Vec<u8> = Vec::new();
 
-    // If MQTT inspection is enabled, perform validation. There are two modes:
-    // - lightweight inspection (only peek the first byte to check packet type)
-    // - full inspection (read fixed header, decode Remaining Length, read payload,
-    //   and validate minimal CONNECT variable header fields)
-    //
-    // If inspection is disabled, act as a transparent TCP proxy.
+    if slowloris_protect {
+        let first_packet_timeout = Duration::from_millis(slowloris_config.first_packet_timeout_ms);
+        let mut peek_buf = [0u8; 16];
+        let n = match timeout(first_packet_timeout, source.peek(&mut peek_buf)).await {
+            Ok(Ok(n)) if n > 0 => n,
+            Ok(Ok(_)) => {
+                warn!(client = %client_peer, "Connection closed before sending data");
+                crate::metrics::SLOWLORIS_REJECTIONS.inc();
+                return Ok(());
+            }
+            Ok(Err(e)) => {
+                warn!(client = %client_peer, error = %e, "Error peeking first packet");
+                crate::metrics::SLOWLORIS_REJECTIONS.inc();
+                return Ok(());
+            }
+            Err(_) => {
+                warn!(client = %client_peer, "First packet timeout - no data received within {}ms",
+                    slowloris_config.first_packet_timeout_ms);
+                crate::metrics::SLOWLORIS_REJECTIONS.inc();
+                return Ok(());
+            }
+        };
+
+        debug!(client = %client_peer, "Received first {} bytes within timeout", n);
+
+        if http_inspect && looks_like_http(&peek_buf[..n]) {
+            info!(client = %client_peer, "HTTP protocol detected - inspecting for Slowloris");
+
+            let http_timeout = Duration::from_millis(slowloris_config.http_request_timeout_ms);
+            let idle_timeout = Duration::from_millis(slowloris_config.packet_idle_timeout_ms);
+
+            match inspect_http(
+                &mut source,
+                http_timeout,
+                idle_timeout,
+                slowloris_config.max_http_header_size,
+                slowloris_config.max_http_header_count,
+                8192,
+            )
+            .await
+            {
+                Ok(HttpInspectionResult::HttpDetected) => {
+                    info!(client = %client_peer, "Valid HTTP request detected - rejecting (wrong protocol for MQTT broker)");
+                    crate::metrics::HTTP_REJECTIONS.inc();
+                    return Ok(());
+                }
+                Ok(HttpInspectionResult::SlowlorisDetected(reason)) => {
+                    warn!(client = %client_peer, reason = %reason, "Slowloris attack detected on HTTP");
+                    crate::metrics::SLOWLORIS_REJECTIONS.inc();
+                    return Ok(());
+                }
+                Ok(HttpInspectionResult::NotHttp) => {
+                    debug!(client = %client_peer, "Quick HTTP check was false positive, proceeding");
+                }
+                Err(e) => {
+                    warn!(client = %client_peer, error = %e, "Error during HTTP inspection");
+                    crate::metrics::SLOWLORIS_REJECTIONS.inc();
+                    return Ok(());
+                }
+            }
+        }
+    }
+
+    // MQTT-specific overlay
     if mqtt_inspect {
         if mqtt_full_inspect {
-            // Full CONNECT validation path.
+            // Apply MQTT CONNECT timeout if Slowloris protection enabled
+            let connect_timeout = if slowloris_protect {
+                Duration::from_millis(slowloris_config.mqtt_connect_timeout_ms)
+            } else {
+                Duration::from_secs(30) // Default fallback
+            };
 
-            // 1) Read fixed header (1 byte) with timeout
-            let mut fixed = [0u8; 1];
-            match timeout(Duration::from_secs(3), source.read_exact(&mut fixed)).await {
-                Ok(Ok(_)) => {}
-                Ok(Err(e)) => {
-                    warn!("Error reading fixed header from client: {}", e);
-                    // Increment protocol rejection metric
-                    crate::metrics::PROTOCOL_REJECTIONS.inc();
-                    return Ok(());
-                }
-                Err(_) => {
-                    warn!("Timeout waiting for MQTT fixed header");
-                    crate::metrics::PROTOCOL_REJECTIONS.inc();
-                    return Ok(());
-                }
-            }
+            let idle_timeout = if slowloris_protect {
+                Duration::from_millis(slowloris_config.packet_idle_timeout_ms)
+            } else {
+                Duration::from_secs(10) // Default fallback
+            };
 
-            // Buffer the fixed header byte so it can be forwarded to the backend after connect
-            initial_bytes.push(fixed[0]);
-
-            // Quick packet-type check (high nibble)
-            let packet_type = mqtt::inspect_packet(&fixed);
-            if packet_type != MqttPacketType::Connect {
-                warn!("Dropped: Expected CONNECT, detected {:?}", packet_type);
-                crate::metrics::PROTOCOL_REJECTIONS.inc();
-                return Ok(());
-            }
-
-            // 2) Read Remaining Length bytes (up to 4). Read one byte at a time until decoder completes.
-            let mut rl_bytes: Vec<u8> = Vec::with_capacity(4);
-            let mut rl_complete = false;
-            let mut remaining_len: usize = 0;
-
-            for _ in 0..4 {
-                let mut b = [0u8; 1];
-                match timeout(Duration::from_secs(1), source.read_exact(&mut b)).await {
-                    Ok(Ok(_)) => {
-                        rl_bytes.push(b[0]);
-                        match mqtt::decode_remaining_length(&rl_bytes) {
-                            Ok((v, _used)) => {
-                                remaining_len = v;
-                                rl_complete = true;
-                                break;
-                            }
-                            Err("Incomplete") => {
-                                // need to read more bytes in next iteration
-                                continue;
-                            }
-                            Err(_) => {
-                                warn!("Malformed Remaining Length received from client");
-                                crate::metrics::PROTOCOL_REJECTIONS.inc();
-                                return Ok(());
-                            }
-                        }
-                    }
-                    Ok(Err(e)) => {
-                        warn!("Error reading Remaining Length byte: {}", e);
+            // Read fixed header with idle timeout
+            let fixed_byte = if slowloris_protect {
+                let mut buf = [0u8; 1];
+                match read_with_idle_timeout(&mut source, &mut buf, idle_timeout, connect_timeout)
+                    .await
+                {
+                    Ok(1) => buf[0],
+                    Ok(_) => {
+                        warn!(client = %client_peer, "EOF while reading MQTT fixed header");
                         crate::metrics::PROTOCOL_REJECTIONS.inc();
+                        return Ok(());
+                    }
+                    Err(e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                        warn!(client = %client_peer, "Timeout reading MQTT fixed header (Slowloris)");
+                        crate::metrics::SLOWLORIS_REJECTIONS.inc();
                         return Ok(());
                     }
                     Err(_) => {
-                        warn!("Timeout reading Remaining Length bytes");
                         crate::metrics::PROTOCOL_REJECTIONS.inc();
                         return Ok(());
                     }
                 }
-            }
+            } else {
+                match read_fixed_header(&mut source).await {
+                    Ok(b) => b,
+                    Err(_) => return Ok(()),
+                }
+            };
+            initial_bytes.push(fixed_byte);
 
-            if !rl_complete {
-                // After up to 4 bytes, if remaining length is still not parsed, drop the connection
-                warn!("Incomplete or malformed Remaining Length after 4 bytes");
+            let packet_type = mqtt::inspect_packet(&[fixed_byte]);
+            if packet_type != MqttPacketType::Connect {
+                warn!(client = %client_peer, "Dropped: Expected CONNECT, detected {:?}", packet_type);
                 crate::metrics::PROTOCOL_REJECTIONS.inc();
                 return Ok(());
             }
 
-            // Append Remaining Length bytes to the initial buffer so they can be forwarded
+            // Read remaining length (pass configured cap)
+            let (rl_bytes, remaining_len) =
+                match read_remaining_length(&mut source, max_connect_remaining).await {
+                    Ok(v) => v,
+                    Err(_) => return Ok(()),
+                };
             initial_bytes.extend_from_slice(&rl_bytes);
 
-            // 3) Read the rest of the CONNECT packet (variable header + payload) using remaining_len
-            let mut payload = vec![0u8; remaining_len];
-            if remaining_len > 0 {
-                match timeout(Duration::from_secs(5), source.read_exact(&mut payload)).await {
-                    Ok(Ok(_)) => {}
-                    Ok(Err(e)) => {
-                        warn!("Error reading CONNECT payload: {}", e);
-                        crate::metrics::PROTOCOL_REJECTIONS.inc();
-                        return Ok(());
-                    }
-                    Err(_) => {
-                        warn!("Timeout reading CONNECT payload");
-                        crate::metrics::PROTOCOL_REJECTIONS.inc();
-                        return Ok(());
-                    }
-                }
-            }
-
-            // Append payload to buffer to forward to backend
+            // Read payload
+            let payload = match read_payload(&mut source, remaining_len).await {
+                Ok(p) => p,
+                Err(_) => return Ok(()),
+            };
             if !payload.is_empty() {
                 initial_bytes.extend_from_slice(&payload);
             }
 
-            // 4) Minimal CONNECT validation:
-            // The CONNECT variable header typically begins with a two-byte length (0x00 0x04) followed by "MQTT"
-            // Ensure payload has at least 6 bytes: 2 length + 4 bytes ("MQTT")
-            if payload.len() < 6 {
-                warn!("Malformed CONNECT: variable header too short");
-                crate::metrics::PROTOCOL_REJECTIONS.inc();
-                return Ok(());
-            }
-            // Use a proper byte-string literal for comparison
-            if !(payload[0] == 0x00 && payload[1] == 0x04 && &payload[2..6] == b"MQTT") {
-                warn!("Malformed CONNECT: invalid protocol name/version");
+            // Validate minimal CONNECT variable header
+            if !validate_connect_variable_header(&payload) {
+                warn!(client = %client_peer, "Malformed CONNECT: invalid protocol name/version or too short");
                 crate::metrics::PROTOCOL_REJECTIONS.inc();
                 return Ok(());
             }
 
-            debug!("Verified full MQTT CONNECT frame (fixed header + remaining length + variable header). Forwarding to {}", target_addr);
+            debug!(
+                "Verified full MQTT CONNECT frame. Forwarding to {}",
+                target_addr
+            );
         } else {
-            // Lightweight inspection: peek the first byte without consuming it
+            // Lightweight inspection: peek the first byte
             let mut buffer = [0u8; 1];
             let peek_res = timeout(Duration::from_secs(3), source.peek(&mut buffer)).await;
             if peek_res.is_err() {
-                warn!("Connection timed out waiting for MQTT data");
+                warn!(client = %client_peer, "Connection timed out waiting for MQTT data");
                 crate::metrics::PROTOCOL_REJECTIONS.inc();
                 return Ok(());
             }
-
             let packet_type = mqtt::inspect_packet(&buffer);
             if packet_type != MqttPacketType::Connect {
-                warn!("Dropped: Expected CONNECT, detected {:?}", packet_type);
+                warn!(client = %client_peer, "Dropped: Expected CONNECT, detected {:?}", packet_type);
                 crate::metrics::PROTOCOL_REJECTIONS.inc();
                 return Ok(());
             }
-
             debug!(
                 "Verified MQTT CONNECT (initial check). Proceeding to backend connect: {}",
                 target_addr
@@ -195,98 +406,31 @@ pub async fn handle_connection(
         );
     }
 
-    // Connect to backend broker with timeout (with additional debug logging)
-    let client_peer = source
-        .peer_addr()
-        .map(|a| a.to_string())
-        .unwrap_or_else(|_| "<unknown>".to_string());
-    debug!(
-        "Attempting backend connect to {} for client {}",
-        target_addr, client_peer
-    );
-    let target = match timeout(Duration::from_secs(5), TcpStream::connect(&target_addr)).await {
-        Ok(stream) => {
-            // `stream` is Result<TcpStream, io::Error> so use `?` to propagate any inner error
-            let s = stream?;
-            debug!(
-                "Successfully connected to backend {} for client {}",
-                target_addr, client_peer
-            );
-            s
-        }
-        Err(_) => {
-            warn!(
-                "Could not connect to backend at {} (connect timeout) for client {}",
-                target_addr, client_peer
-            );
-            return Ok(());
-        }
+    // client_peer already captured earlier for logging at inspection-time
+
+    // Connect to backend
+    let target = match connect_backend(&target_addr, &client_peer).await {
+        Ok(s) => s,
+        Err(_) => return Ok(()),
     };
 
-    // Split streams for proxying
     let (mut source_read, mut source_write) = source.into_split();
     let (mut target_read, mut target_write) = target.into_split();
 
-    // If we have already consumed bytes from the client (e.g., CONNECT fixed header + RL + payload),
-    // forward them first to the backend so the backend sees the complete initial packet.
-    if !initial_bytes.is_empty() {
-        // Provide a short hex preview and length for debugging
-        let preview: String = initial_bytes
-            .iter()
-            .take(16)
-            .map(|b| format!("{:02x}", b))
-            .collect::<Vec<_>>()
-            .join(" ");
-        debug!(
-            "Forwarding {} initial bytes to backend {} for client {} (preview: {})",
-            initial_bytes.len(),
-            target_addr,
-            client_peer,
-            preview
-        );
-
-        match timeout(
-            Duration::from_secs(3),
-            target_write.write_all(&initial_bytes),
-        )
-        .await
-        {
-            Ok(Ok(_)) => {
-                debug!(
-                    "Successfully forwarded {} initial bytes to backend {} for client {}",
-                    initial_bytes.len(),
-                    target_addr,
-                    client_peer
-                );
-            }
-            Ok(Err(e)) => {
-                warn!(
-                    "Error writing initial CONNECT bytes to backend {} for client {}: {}",
-                    target_addr, client_peer, e
-                );
-                // Provide a debug dump of error context (if available) before bailing out
-                debug!(
-                    "Initial bytes length: {}, preview: {}",
-                    initial_bytes.len(),
-                    preview
-                );
-                return Ok(());
-            }
-            Err(_) => {
-                warn!(
-                    "Timeout writing initial CONNECT bytes to backend {} for client {}",
-                    target_addr, client_peer
-                );
-                debug!(
-                    "Initial bytes length: {}, preview: {}",
-                    initial_bytes.len(),
-                    preview
-                );
-                return Ok(());
-            }
-        }
+    // Forward initial bytes if present
+    if let Err(e) = forward_initial_bytes(
+        &mut target_write,
+        &initial_bytes,
+        &target_addr,
+        &client_peer,
+    )
+    .await
+    {
+        warn!(client = %client_peer, reason = %e, "Failed forwarding initial bytes to backend");
+        return Ok(());
     }
 
+    // Start bidirectional copying between client and backend
     let _ = tokio::select! {
         res = io::copy(&mut source_read, &mut target_write) => res,
         res = io::copy(&mut target_read, &mut source_write) => res,

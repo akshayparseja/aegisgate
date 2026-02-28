@@ -26,6 +26,7 @@ fn init_production_logging() {
     info!("Production structured logging initialized (JSON)");
 }
 
+/// Handle simple HTTP endpoints for liveness and metrics.
 async fn metrics_handler(req: Request<Body>) -> Result<Response<Body>, Infallible> {
     match req.uri().path() {
         "/health" => Ok(Response::new(Body::from("OK"))),
@@ -62,7 +63,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config: Config = serde_yaml::from_str(&config_data)?;
 
     let limit_cfg = Arc::new(config.limit.clone());
+    let slowloris_cfg = Arc::new(config.slowloris_protection.clone());
     let target_addr = config.proxy.target_address.clone();
+    // Configure maximum Remaining Length (bytes) allowed for full CONNECT inspection.
+    // If the YAML omits this value, fall back to a safe default of 64 KiB.
+    let max_connect_remaining = config.proxy.max_connect_remaining.unwrap_or(64 * 1024);
     let master_token = CancellationToken::new();
     let features = config.features.clone();
 
@@ -94,16 +99,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             res = listener.accept() => {
                 if let Ok((socket, addr)) = res {
                     let l_cfg = Arc::clone(&limit_cfg);
+                    let sl_cfg = Arc::clone(&slowloris_cfg);
                     let target = target_addr.clone();
                     let mqtt_inspect = features.enable_mqtt_inspection;
+                    let http_inspect = features.enable_http_inspection;
+                    let slowloris_protect = features.enable_slowloris_protection;
                     let rate_limiter_enabled = features.enable_rate_limiter;
 
                     let allowed = !rate_limiter_enabled || check_rate_limit(addr.ip(), &l_cfg);
 
                     if allowed {
                         let full_inspect = features.enable_mqtt_full_inspection;
+                        // Pass the configured Remaining Length cap into the connection handler.
+                        let max_rl = max_connect_remaining;
                         tokio::spawn(async move {
-                            if let Err(e) = handle_connection(socket, target, mqtt_inspect, full_inspect).await {
+                            if let Err(e) = handle_connection(
+                                socket,
+                                target,
+                                mqtt_inspect,
+                                full_inspect,
+                                http_inspect,
+                                slowloris_protect,
+                                max_rl,
+                                (*sl_cfg).clone(),
+                            ).await {
                                 error!(client_ip = %addr.ip(), error = %e, "Connection error");
                             }
                         });
