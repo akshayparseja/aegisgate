@@ -5,9 +5,12 @@ Cargo.lock
 
 # --- Environment and Secrets ---
 .env
+.env.*
 *.pem
 *.key
 *.crt
+secrets/
+*.secret
 
 # --- OS / IDE Specific ---
 .DS_Store
@@ -16,7 +19,29 @@ Cargo.lock
 *.swp
 *.swo
 .zed/
+
 # --- AegisGate Specific ---
 logs/
 *.log
-.mds
+.mds/
+aegis-proxy.log
+
+# --- Docker & Build Artifacts ---
+docker-compose.override.yml
+.docker/
+
+# --- Backup Files ---
+*.bak
+*.backup
+*~
+
+# --- Test Output ---
+test-results/
+coverage/
+*.profraw
+*.profdata
+
+# --- Temporary Files ---
+tmp/
+temp/
+*.tmp
