@@ -153,30 +153,6 @@ curl -s http://localhost:9090/metrics | grep rejections_total
 - Cargo
 - Docker and Docker Compose (for containerized testing)
 
-### Project Structure
-
-```
-aegisgate/
-├── crates/
-│   ├── aegis-common/          # Shared configuration types
-│   └── aegis-proxy/           # Main proxy implementation
-│       ├── src/
-│       │   ├── main.rs        # Entry point
-│       │   ├── engine/        # Core proxy logic
-│       │   │   ├── connection.rs   # Connection handler
-│       │   │   ├── http.rs         # HTTP detection
-│       │   │   ├── limiter.rs      # Rate limiting
-│       │   │   └── slowloris.rs    # Timeout utilities
-│       │   ├── parser/        # Protocol parsers
-│       │   │   └── mqtt.rs         # MQTT packet parsing
-│       │   └── metrics.rs     # Prometheus metrics
-│       └── tests/             # Integration tests
-├── config/
-│   └── aegis_config.yaml      # Runtime configuration
-├── docker-compose.yaml
-├── Dockerfile
-└── Makefile
-```
 
 ### Building
 
@@ -191,19 +167,6 @@ cargo build --release --manifest-path crates/aegis-proxy/Cargo.toml
 cargo test --manifest-path crates/aegis-proxy/Cargo.toml
 ```
 
-### Testing
-
-```bash
-# Run all tests
-cargo test
-
-# Run specific test suite
-cargo test --test http_tests
-cargo test --test slowloris_tests
-
-# Run with logging
-RUST_LOG=debug cargo test -- --nocapture
-```
 
 ### Using Make
 
@@ -221,34 +184,6 @@ make test
 make clean
 ```
 
-## Testing the Proxy
-
-### Publish a Message
-
-```bash
-# Through proxy (port 8080)
-mosquitto_pub -h localhost -p 8080 -t test/topic -m "Hello AegisGate" -q 1
-
-# Directly to broker (port 1883)
-mosquitto_pub -h localhost -p 1883 -t test/topic -m "Direct to broker" -q 1
-```
-
-### Subscribe to Messages
-
-```bash
-# Through proxy
-mosquitto_sub -h localhost -p 8080 -t test/topic -v
-
-# Directly to broker
-mosquitto_sub -h localhost -p 1883 -t test/topic -v
-```
-
-### Test HTTP Rejection
-
-```bash
-# This should be rejected by HTTP detection
-curl -v http://localhost:8080/
-```
 
 ## Deployment
 
@@ -293,32 +228,3 @@ docker-compose down
 3. **Network Isolation**: Run AegisGate in a DMZ between untrusted clients and MQTT brokers
 4. **Monitoring**: Set up alerts on rejection metrics to detect attacks
 5. **Regular Updates**: Keep dependencies updated for security patches
-
-## Troubleshooting
-
-### High Rate Limit Rejections
-
-Check `aegis_rejected_connections_total` metric. If legitimate clients are being blocked:
-- Increase `max_tokens` for higher burst capacity
-- Increase `refill_rate` for sustained higher throughput
-
-### Slowloris False Positives
-
-If legitimate slow connections are timing out:
-- Increase `packet_idle_timeout_ms` for slower networks
-- Increase protocol-specific timeouts (e.g., `mqtt_connect_timeout_ms`)
-
-### Connection Refused
-
-Verify:
-- AegisGate is listening on expected port (`listen_address`)
-- Backend broker is reachable (`target_address`)
-- No firewall rules blocking connections
-
-## License
-
-Copyright 2024. All rights reserved.
-
-## Contributing
-
-This is a private project. For questions or issues, contact the maintainer.
