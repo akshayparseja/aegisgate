@@ -1,6 +1,6 @@
 # AegisGate
 
-A high-performance, security-focused MQTT proxy gateway built in Rust with production-grade protection mechanisms.
+A high-performance, security-focused MQTT proxy gateway built in Rust 
 
 ## Overview
 
