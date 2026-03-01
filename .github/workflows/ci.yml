@@ -178,27 +178,35 @@ jobs:
 
       - name: Test Docker image health
         run: |
+          # Use random available ports to avoid conflicts
           docker run -d --name aegis-test \
-            -p 8080:8080 \
-            -p 9090:9090 \
+            -p 0:8080 \
+            -p 0:9090 \
             aegisgate-proxy:ci-test
 
-          sleep 5
+          sleep 8
 
           # Check if container is running
           if ! docker ps | grep -q aegis-test; then
             echo "Container failed to start"
             docker logs aegis-test
+            docker rm -f aegis-test 2>/dev/null || true
             exit 1
           fi
+
+          # Get the dynamically assigned port for metrics
+          METRICS_PORT=$(docker port aegis-test 9090 | cut -d: -f2)
 
           # Check health endpoint
-          if ! curl -f http://localhost:9090/health; then
+          if ! curl -f http://localhost:${METRICS_PORT}/health; then
             echo "Health check failed"
             docker logs aegis-test
+            docker stop aegis-test
+            docker rm aegis-test
             exit 1
           fi
 
+          echo "Health check passed on port ${METRICS_PORT}"
           docker stop aegis-test
           docker rm aegis-test
 
@@ -218,16 +226,18 @@ jobs:
         timeout-minutes: 10
 
       - name: Run coverage
-        run: cargo tarpaulin --workspace --timeout 300 --out xml
+        run: cargo tarpaulin --workspace --timeout 300 --out html --out xml
         continue-on-error: true
 
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+      - name: Upload coverage report as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
         with:
-          files: ./cobertura.xml
-          fail_ci_if_error: false
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          name: coverage-report
+          path: |
+            tarpaulin-report.html
+            cobertura.xml
+          retention-days: 30
 
   status-check:
     name: All Checks Passed
