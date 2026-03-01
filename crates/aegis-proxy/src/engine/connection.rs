@@ -10,20 +10,26 @@ use tracing::{debug, info, warn};
 
 pub static ACTIVE_CONNECTIONS: AtomicUsize = AtomicUsize::new(0);
 
-/// Maximum Remaining Length cap is configurable at runtime via `ProxyConfig.max_connect_remaining`.
-/// The runtime-configured cap will be passed into the remaining-length reader; there is
-/// no hard-coded constant here so different deployments can tune the value as needed.
+/// Configuration for connection handling behavior.
+pub struct ConnectionConfig {
+    pub mqtt_inspect: bool,
+    pub mqtt_full_inspect: bool,
+    pub http_inspect: bool,
+    pub slowloris_protect: bool,
+    pub max_connect_remaining: usize,
+    pub slowloris_config: SlowlorisConfig,
+}
 
-struct ConnectionGuard;
+struct ProxyConnectionGuard;
 
-impl ConnectionGuard {
+impl ProxyConnectionGuard {
     fn new() -> Self {
         ACTIVE_CONNECTIONS.fetch_add(1, Ordering::SeqCst);
         Self
     }
 }
 
-impl Drop for ConnectionGuard {
+impl Drop for ProxyConnectionGuard {
     fn drop(&mut self) {
         ACTIVE_CONNECTIONS.fetch_sub(1, Ordering::SeqCst);
     }
@@ -219,15 +225,8 @@ async fn forward_initial_bytes(
 pub async fn handle_connection(
     mut source: TcpStream,
     target_addr: String,
-    mqtt_inspect: bool,
-    mqtt_full_inspect: bool,
-    http_inspect: bool,
-    slowloris_protect: bool,
-    max_connect_remaining: usize,
-    slowloris_config: SlowlorisConfig,
+    config: ConnectionConfig,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let _guard = ConnectionGuard::new();
-
     let client_peer = source
         .peer_addr()
         .map(|a| a.to_string())
@@ -235,8 +234,9 @@ pub async fn handle_connection(
 
     let mut initial_bytes: Vec<u8> = Vec::new();
 
-    if slowloris_protect {
-        let first_packet_timeout = Duration::from_millis(slowloris_config.first_packet_timeout_ms);
+    if config.slowloris_protect {
+        let first_packet_timeout =
+            Duration::from_millis(config.slowloris_config.first_packet_timeout_ms);
         let mut peek_buf = [0u8; 16];
         let n = match timeout(first_packet_timeout, source.peek(&mut peek_buf)).await {
             Ok(Ok(n)) if n > 0 => n,
@@ -252,7 +252,7 @@ pub async fn handle_connection(
             }
             Err(_) => {
                 warn!(client = %client_peer, "First packet timeout - no data received within {}ms",
-                    slowloris_config.first_packet_timeout_ms);
+                    config.slowloris_config.first_packet_timeout_ms);
                 crate::metrics::SLOWLORIS_REJECTIONS.inc();
                 return Ok(());
             }
@@ -260,18 +260,20 @@ pub async fn handle_connection(
 
         debug!(client = %client_peer, "Received first {} bytes within timeout", n);
 
-        if http_inspect && looks_like_http(&peek_buf[..n]) {
+        if config.http_inspect && looks_like_http(&peek_buf[..n]) {
             info!(client = %client_peer, "HTTP protocol detected - inspecting for Slowloris");
 
-            let http_timeout = Duration::from_millis(slowloris_config.http_request_timeout_ms);
-            let idle_timeout = Duration::from_millis(slowloris_config.packet_idle_timeout_ms);
+            let http_timeout =
+                Duration::from_millis(config.slowloris_config.http_request_timeout_ms);
+            let idle_timeout =
+                Duration::from_millis(config.slowloris_config.packet_idle_timeout_ms);
 
             match inspect_http(
                 &mut source,
                 http_timeout,
                 idle_timeout,
-                slowloris_config.max_http_header_size,
-                slowloris_config.max_http_header_count,
+                config.slowloris_config.max_http_header_size,
+                config.slowloris_config.max_http_header_count,
                 8192,
             )
             .await
@@ -299,23 +301,23 @@ pub async fn handle_connection(
     }
 
     // MQTT-specific overlay
-    if mqtt_inspect {
-        if mqtt_full_inspect {
+    if config.mqtt_inspect {
+        if config.mqtt_full_inspect {
             // Apply MQTT CONNECT timeout if Slowloris protection enabled
-            let connect_timeout = if slowloris_protect {
-                Duration::from_millis(slowloris_config.mqtt_connect_timeout_ms)
+            let connect_timeout = if config.slowloris_protect {
+                Duration::from_millis(config.slowloris_config.mqtt_connect_timeout_ms)
             } else {
                 Duration::from_secs(30) // Default fallback
             };
 
-            let idle_timeout = if slowloris_protect {
-                Duration::from_millis(slowloris_config.packet_idle_timeout_ms)
+            let idle_timeout = if config.slowloris_protect {
+                Duration::from_millis(config.slowloris_config.packet_idle_timeout_ms)
             } else {
                 Duration::from_secs(10) // Default fallback
             };
 
             // Read fixed header with idle timeout
-            let fixed_byte = if slowloris_protect {
+            let fixed_byte = if config.slowloris_protect {
                 let mut buf = [0u8; 1];
                 match read_with_idle_timeout(&mut source, &mut buf, idle_timeout, connect_timeout)
                     .await
@@ -353,7 +355,7 @@ pub async fn handle_connection(
 
             // Read remaining length (pass configured cap)
             let (rl_bytes, remaining_len) =
-                match read_remaining_length(&mut source, max_connect_remaining).await {
+                match read_remaining_length(&mut source, config.max_connect_remaining).await {
                     Ok(v) => v,
                     Err(_) => return Ok(()),
                 };
@@ -413,6 +415,8 @@ pub async fn handle_connection(
         Ok(s) => s,
         Err(_) => return Ok(()),
     };
+
+    let _guard = ProxyConnectionGuard::new();
 
     let (mut source_read, mut source_write) = source.into_split();
     let (mut target_read, mut target_write) = target.into_split();

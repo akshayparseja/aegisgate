@@ -53,7 +53,6 @@ struct RequestLine {
 }
 
 /// Header struct removed — it was unused. Kept out-of-band to avoid dead_code warning.
-
 /// Inspects incoming data to detect HTTP protocol and Slowloris attacks.
 ///
 /// # Arguments

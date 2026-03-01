@@ -1,6 +1,14 @@
 # AegisGate
 
-A high-performance, security-focused MQTT proxy gateway built in Rust 
+[![CI](https://github.com/akshayparseja/aegisgate/actions/workflows/ci.yml/badge.svg)](https://github.com/akshayparseja/aegisgate/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
+[![Rust Version](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org)
+[![Version](https://img.shields.io/badge/version-0.1.0--alpha-yellow.svg)](https://github.com/akshayparseja/aegisgate/releases)
+[![Docker](https://img.shields.io/badge/docker-available-blue.svg)](https://github.com/akshayparseja/aegisgate/pkgs/container/aegisgate)
+
+> **Alpha Release:** This project is in early development. APIs and configuration may change. Not recommended for production use.
+
+A high-performance, security-focused MQTT proxy gateway built in Rust
 
 ## Overview
 

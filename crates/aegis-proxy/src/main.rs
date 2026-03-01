@@ -1,5 +1,5 @@
 use aegis_common::Config;
-use aegis_proxy::engine::connection::handle_connection;
+use aegis_proxy::engine::connection::{handle_connection, ConnectionConfig};
 use aegis_proxy::engine::limiter::{check_rate_limit, start_cleanup_task};
 use aegis_proxy::metrics;
 use hyper::{
@@ -101,27 +101,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let l_cfg = Arc::clone(&limit_cfg);
                     let sl_cfg = Arc::clone(&slowloris_cfg);
                     let target = target_addr.clone();
-                    let mqtt_inspect = features.enable_mqtt_inspection;
-                    let http_inspect = features.enable_http_inspection;
-                    let slowloris_protect = features.enable_slowloris_protection;
                     let rate_limiter_enabled = features.enable_rate_limiter;
 
                     let allowed = !rate_limiter_enabled || check_rate_limit(addr.ip(), &l_cfg);
 
                     if allowed {
-                        let full_inspect = features.enable_mqtt_full_inspection;
-                        // Pass the configured Remaining Length cap into the connection handler.
-                        let max_rl = max_connect_remaining;
+                        let conn_config = ConnectionConfig {
+                            mqtt_inspect: features.enable_mqtt_inspection,
+                            mqtt_full_inspect: features.enable_mqtt_full_inspection,
+                            http_inspect: features.enable_http_inspection,
+                            slowloris_protect: features.enable_slowloris_protection,
+                            max_connect_remaining,
+                            slowloris_config: (*sl_cfg).clone(),
+                        };
                         tokio::spawn(async move {
                             if let Err(e) = handle_connection(
                                 socket,
                                 target,
-                                mqtt_inspect,
-                                full_inspect,
-                                http_inspect,
-                                slowloris_protect,
-                                max_rl,
-                                (*sl_cfg).clone(),
+                                conn_config,
                             ).await {
                                 error!(client_ip = %addr.ip(), error = %e, "Connection error");
                             }
