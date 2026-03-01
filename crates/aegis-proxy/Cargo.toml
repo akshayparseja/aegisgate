@@ -12,12 +12,8 @@ serde_yaml = "0.9"
 aegis-common = { path = "../aegis-common" }
 dashmap = "6.0"
 once_cell = "1.19"
-bytes = "1.5"
 tokio-util = { version = "0.7", features = ["rt"] }
-prometheus = "0.13"
+prometheus = "0.14"
 lazy_static = "1.4"
 hyper = { version = "0.14", features = ["full"] }
 pin-project-lite = "0.2"
-
-[dev-dependencies]
-rumqttc = "0.24"
