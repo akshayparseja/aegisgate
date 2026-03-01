@@ -1,94 +1,129 @@
-# AegisGate Code of Conduct
+# Contributor Covenant Code of Conduct
 
-Version 1.0 — Last updated: 2026-02-26
+## Our Pledge
 
-This Code of Conduct outlines our expectations for participant behavior in the AegisGate community, and the steps to take if someone engages in unacceptable behavior. We are committed to providing a friendly, safe, and welcoming environment for all, regardless of background or identity.
+We as members, contributors, and leaders pledge to make participation in our
+community a harassment-free experience for everyone, regardless of age, body
+size, visible or invisible disability, ethnicity, sex characteristics, gender
+identity and expression, level of experience, education, socio-economic status,
+nationality, personal appearance, race, religion, or sexual identity
+and orientation.
 
-## Purpose
+We pledge to act and interact in ways that contribute to an open, welcoming,
+diverse, inclusive, and healthy community.
 
-AegisGate is a community-driven project. We value the participation of every person and want all contributors and users to have an enjoyable and fulfilling experience. This Code of Conduct is intended to make clear what is expected of all community members and to provide a process for addressing behavior that falls short of those expectations.
+## Our Standards
+
+Examples of behavior that contributes to a positive environment for our
+community include:
+
+* Demonstrating empathy and kindness toward other people
+* Being respectful of differing opinions, viewpoints, and experiences
+* Giving and gracefully accepting constructive feedback
+* Accepting responsibility and apologizing to those affected by our mistakes,
+  and learning from the experience
+* Focusing on what is best not just for us as individuals, but for the overall
+  community
+
+Examples of unacceptable behavior include:
+
+* The use of sexualized language or imagery, and sexual attention or advances of
+  any kind
+* Trolling, insulting or derogatory comments, and personal or political attacks
+* Public or private harassment
+* Publishing others' private information, such as a physical or email address,
+  without their explicit permission
+* Other conduct which could reasonably be considered inappropriate in a
+  professional setting
+
+## Enforcement Responsibilities
+
+Community leaders are responsible for clarifying and enforcing our standards of
+acceptable behavior and will take appropriate and fair corrective action in
+response to any behavior that they deem inappropriate, threatening, offensive,
+or harmful.
+
+Community leaders have the right and responsibility to remove, edit, or reject
+comments, commits, code, wiki edits, issues, and other contributions that are
+not aligned to this Code of Conduct, and will communicate reasons for moderation
+decisions when appropriate.
 
 ## Scope
 
-This Code of Conduct applies to all spaces created by or hosted by the AegisGate project, including but not limited to:
-
-- GitHub repository discussions, issues, pull requests, and code review
-- Mailing lists, chat rooms, and forums associated with the project
-- In-person and virtual events organized by AegisGate
-- Any other public or private communication channels where participants are representing or interacting with the AegisGate community
-
-## Standards
-
-Examples of behavior we expect from all participants include:
-
-- Be respectful and considerate in your language and actions.
-- Assume good faith in others' intentions.
-- Be mindful of differing viewpoints and experiences.
-- Provide constructive feedback, and do so with kindness.
-- Seek to resolve disagreements privately and respectfully when possible.
-
-Unacceptable behavior includes (but is not limited to):
-
-- Violence, threats of violence, or intimidation.
-- Harassment, hate speech, or derogatory comments based on identity (including race, religion, gender, sexual orientation, disability, or any other protected class).
-- Deliberate or reckless misrepresentation of affiliation, identity, or contributions.
-- Sharing private information (doxing) without explicit consent.
-- Sexual content or sexual language in a space meant for professional or community discussion.
-- Repeated disruptive behavior or any actions that degrade the experience of other participants.
-
-## Reporting
-
-If you experience or witness unacceptable behavior, please report it promptly. Reports will be handled with discretion and, to the extent possible, confidentiality.
-
-To report an incident, you may:
-
-1. Open a private GitHub Security Advisory (if applicable for code-related security issues).
-2. Email the project maintainers at: REPLACE_WITH_MAINTAINERS_EMAIL
-3. If your report involves the maintainers or you prefer an external route, email: REPLACE_WITH_SECONDARY_CONTACT (e.g., project-committee@example.com)
-
-When reporting, please include:
-
-- A description of the incident (what happened, when, and where)
-- The names or identifiers of participants involved (if known)
-- Any relevant logs, screenshots, or copies of messages
-- Your contact information and whether you wish your report to remain confidential
-
-If you are unsure whether the behavior warrants a report, you are welcome to reach out informally to the maintainers for guidance.
+This Code of Conduct applies within all community spaces, and also applies when
+an individual is officially representing the community in public spaces.
+Examples of representing our community include using an official e-mail address,
+posting via an official social media account, or acting as an appointed
+representative at an online or offline event.
 
 ## Enforcement
 
-All reports will be reviewed by the maintainers or a designated conduct team. Enforcement actions are at the discretion of the maintainers and will vary based on the severity and frequency of the misconduct. Possible actions include:
+Instances of abusive, harassing, or otherwise unacceptable behavior may be
+reported to the community leaders responsible for enforcement via GitHub issues
+or by contacting the project maintainers directly.
 
-- Request for clarification or apology
-- Warning and temporary suspension of project privileges (e.g., blocking or muting)
-- Removal of offending content
-- Revocation of commit or contributor access
-- Permanent ban from communication channels or the project
-- Referral to law enforcement where necessary
+All complaints will be reviewed and investigated promptly and fairly.
 
-We will strive to follow a fair process:
+All community leaders are obligated to respect the privacy and security of the
+reporter of any incident.
 
-- Acknowledge receipt of the report within a reasonable time.
-- Assess the report and gather additional information if necessary.
-- Notify involved parties as appropriate and provide an opportunity to respond.
-- Decide on appropriate action, communicate that decision, and apply remedies.
+## Enforcement Guidelines
 
-We will not tolerate retaliation against anyone who reports a concern in good faith. If you feel you are being retaliated against, report that as well.
+Community leaders will follow these Community Impact Guidelines in determining
+the consequences for any action they deem in violation of this Code of Conduct:
 
-## Private and Sensitive Situations
+### 1. Correction
 
-If the reported situation is sensitive (e.g., sexual assault, threats of violence, or if the reporter asks for special handling), the maintainers will take additional care to protect confidentiality and safety and will work with the reporter to determine the best course of action.
+**Community Impact**: Use of inappropriate language or other behavior deemed
+unprofessional or unwelcome in the community.
 
-## Appeal
+**Consequence**: A private, written warning from community leaders, providing
+clarity around the nature of the violation and an explanation of why the
+behavior was inappropriate. A public apology may be requested.
 
-If you are subject to an enforcement action and believe it was unjust, you may request an appeal by contacting the project maintainers at REPLACE_WITH_APPEAL_CONTACT. Appeals will be reviewed by a different maintainer or an impartial committee where feasible.
+### 2. Warning
+
+**Community Impact**: A violation through a single incident or series of
+actions.
+
+**Consequence**: A warning with consequences for continued behavior. No
+interaction with the people involved, including unsolicited interaction with
+those enforcing the Code of Conduct, for a specified period of time. This
+includes avoiding interactions in community spaces as well as external channels
+like social media. Violating these terms may lead to a temporary or permanent
+ban.
+
+### 3. Temporary Ban
+
+**Community Impact**: A serious violation of community standards, including
+sustained inappropriate behavior.
+
+**Consequence**: A temporary ban from any sort of interaction or public
+communication with the community for a specified period of time. No public or
+private interaction with the people involved, including unsolicited interaction
+with those enforcing the Code of Conduct, is allowed during this period.
+Violating these terms may lead to a permanent ban.
+
+### 4. Permanent Ban
+
+**Community Impact**: Demonstrating a pattern of violation of community
+standards, including sustained inappropriate behavior, harassment of an
+individual, or aggression toward or disparagement of classes of individuals.
+
+**Consequence**: A permanent ban from any sort of public interaction within the
+community.
 
 ## Attribution
 
-This Code of Conduct is adapted from widely used community standards (including the Contributor Covenant). We thank the authors of those templates for providing a well-structured foundation for inclusive project communities.
+This Code of Conduct is adapted from the [Contributor Covenant][homepage],
+version 2.1, available at
+https://www.contributor-covenant.org/version/2/1/code_of_conduct.html
 
----
+Community Impact Guidelines were inspired by
+[Mozilla's code of conduct enforcement ladder](https://github.com/mozilla/diversity).
 
-If you are unsure who to contact or need immediate assistance with a safety concern, please use your local emergency services. For all other matters, please replace the placeholder emails above with the appropriate contact addresses for the AegisGate maintainers and security contacts.
+[homepage]: https://www.contributor-covenant.org
 
-Thank you for helping make AegisGate a welcoming, respectful, and productive community.
+For answers to common questions about this code of conduct, see the FAQ at
+https://www.contributor-covenant.org/faq. Translations are available at
+https://www.contributor-covenant.org/translations.

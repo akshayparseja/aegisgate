@@ -1,170 +1,208 @@
 # Contributing to AegisGate
 
-Thank you for wanting to contribute — your help improves AegisGate for everyone. This document explains how to report issues, propose changes, and submit patches in a way that allows us to review and merge them quickly. I (the maintainers) value clear, test-backed contributions and a respectful community.
+Thank you for your interest in contributing to AegisGate. This document outlines the process for contributing to the project.
 
-Table of contents
-- [Quick start](#quick-start)
-- [Reporting bugs & requesting features](#reporting-bugs--requesting-features)
-- [Working on a change (PR workflow)](#working-on-a-change-pr-workflow)
-- [Commit message & sign-off (DCO)](#commit-message--sign-off-dco)
-- [Code style & linters](#code-style--linters)
-- [Testing locally](#testing-locally)
-- [Continuous integration / checks](#continuous-integration--checks)
-- [What we review](#what-we-review)
-- [License & copyright](#license--copyright)
-- [Code of conduct](#code-of-conduct)
+## License and Copyright
 
----
+By contributing code to the AegisGate project, you agree to license your contributions under the Apache License 2.0. When you submit any copyrighted material via pull request or other means, you agree to license the material under the project's open source license and warrant that you have the legal authority to do so.
 
-## Quick start
+When changing existing source code, you do not alter the copyright of the original file(s). The copyright remains with the original creator(s).
 
-1. Fork the repository on GitHub and clone your fork:
-   - `git clone git@github.com:<your-username>/aegisgate.git`
-2. Create a named branch for your work:
-   - `git checkout -b feat/short-description` or `bugfix/short-description`
-3. Make changes, run tests and linters locally.
-4. Commit with a clear message and a DCO sign-off (see below).
-5. Push and open a Pull Request (PR) against the `main` branch of the upstream repository.
+## Getting Started
 
----
+1. Fork the repository on GitHub
+2. Clone your fork locally:
+   ```
+   git clone https://github.com/YOUR_USERNAME/aegisgate.git
+   cd aegisgate
+   ```
+3. Create a branch for your changes:
+   ```
+   git checkout -b feature/your-feature-name
+   ```
 
-## Reporting bugs & requesting features
+## Development Setup
 
-- Search existing issues first to avoid duplicates.
-- For bugs, include:
-  - Steps to reproduce
-  - Expected vs actual behavior
-  - Version / commit / Docker image used
-  - Minimal reproduction (config, traffic example, or script)
-  - Relevant logs and metrics (redact secrets)
-- For feature requests, include:
-  - Use case and value proposition
-  - Example configuration or CLI
-  - Backwards compatibility concerns
+### Prerequisites
 
-If you're unsure, open an issue describing the idea — maintainers will triage and guide next steps.
+- Rust 1.75 or later
+- Docker and Docker Compose (for testing)
 
----
+### Building
 
-## Working on a change (PR workflow)
-
-Preferred workflow:
-- Fork → Branch → Commit → PR
-
-Guidelines:
-- Keep PRs focused (one logical change per PR).
-- Rebase on `main` rather than merge `main` into feature branches to keep history simple, unless the PR is large and needs frequent merges.
-- Include tests for bug fixes and features whenever practical.
-- Add or update documentation (`README.md`, `config/*.yaml.example`, or docs folder) for any user-visible change.
-- Mark work-in-progress PRs as draft until ready for review.
-
-PR checklist (what the submitter should ensure)
-- [ ] Code compiles and tests pass locally
-- [ ] `cargo fmt` applied and `cargo clippy` addressed (see code style)
-- [ ] Added/updated tests where applicable
-- [ ] Updated README/config docs if user-visible
-- [ ] Signed-off (DCO) on commits
-
----
-
-## Commit message & sign-off (DCO)
-
-We use the Developer Certificate of Origin (DCO) to track contributor agreement that you have the right to submit the code.
-
-- Sign your commits with a `Signed-off-by` trailer:
-  - Example commit command:
-    - `git commit -s -m "feat: validate CONNECT packet length\n\nAdd a parser guard for maximum CONNECT remaining length."`
-  - Or add manually to the commit message body:
-    - `Signed-off-by: Jane Developer <jane@example.com>`
-
-By signing-off you assert that:
-- You created the patch or otherwise have the right to contribute it under the project license, or
-- You have the right to submit work you are contributing from a third party.
-
-If you must contribute via GitHub web editor and cannot sign with `-s`, add this line to the PR description:
 ```
-Signed-off-by: Your Name <your-email@example.com>
+cargo build --manifest-path crates/aegis-proxy/Cargo.toml
 ```
-But CLI `git commit -s` is preferred.
 
-PRs missing signed-off commits may be blocked until signed-off or explicit contributor permission is provided.
+### Running Tests
 
----
+```
+cargo test --workspace
+```
 
-## Code style & linters
+### Running Locally
 
-AegisGate is written in Rust. Keep the repository consistent:
+```
+cargo run --manifest-path crates/aegis-proxy/Cargo.toml
+```
 
-- Formatting: `cargo fmt --all`
-- Lints: `cargo clippy --all -- -D warnings`
-- Rust edition: 2021 (check `Cargo.toml` in each crate)
-- Keep changes small and readable; prefer expressive naming and short functions.
+## Making Changes
 
-For shell / scripts:
-- Follow POSIX / project conventions
-- Add `#! /usr/bin/env bash` or appropriate shebang and make scripts executable.
+### Code Style
 
----
+All code must follow Rust standard formatting and pass clippy checks:
 
-## Testing locally
+```
+cargo fmt --all
+cargo clippy --all -- -D warnings
+```
 
-Unit and integration tests:
-- Run crate tests:
-  - `cargo test --manifest-path crates/aegis-proxy/Cargo.toml`
-- Run the whole workspace tests (from repo root):
-  - `cargo test --workspace`
+### Testing
 
-Docker-based quick integration:
-- `docker-compose up -d` (refer to `docker-compose.yaml`)
-- Use the included `test_http_detect.py` or equivalent scripts to reproduce cases.
+- Write tests for new features and bug fixes
+- Ensure all tests pass before submitting a pull request
+- Include both unit tests and integration tests where applicable
 
-If you add a failing test, include a short note in the PR describing the failure case.
+### Documentation
 
----
+- Update documentation for user-facing changes
+- Update configuration examples in `config/` if adding new options
+- Update README.md for significant features
 
-## Continuous integration / checks
+## Submitting Changes
 
-We aim to run CI on each PR (tests, formatting, clippy). If CI is not yet configured for a branch, run the checks locally before opening a PR.
+### Commit Message Format
 
-Suggested local commands:
-- `cargo fmt --all -- --check`
-- `cargo clippy --all -- -D warnings`
-- `cargo test --manifest-path crates/aegis-proxy/Cargo.toml`
+Each commit message should follow this format:
 
----
+```
+<type>(<scope>): <subject>
 
-## What we review
+<body>
 
-During review we look for:
-- Correctness and safety (security-sensitive code gets more scrutiny)
-- Tests that cover the change
-- No leaking secrets or credentials
-- Documentation for user-visible changes
-- Performance regressions for critical paths (proxying, parsing)
-- Proper error handling and logging
+<footer>
+```
 
-Reviewers may ask for changes; be responsive and keep PRs up-to-date (rebase if requested).
+**Type** must be one of:
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting, no logic change)
+- `refactor`: Code refactoring
+- `perf`: Performance improvements
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks, dependency updates
+- `ci`: CI/CD pipeline changes
 
----
+**Scope** (optional): The component affected (e.g., `proxy`, `mqtt`, `rate-limit`, `metrics`)
 
-## License & copyright
+**Subject**: Short description (imperative mood, lowercase, no period)
 
-- The repository currently contains a `LICENSE` file at the root. Please ensure your contributions are compatible with that license.
-- If you plan to change the project license (for example, to Apache-2.0), mention it in an issue and get consensus from maintainers before submitting large contributions that depend on the license change.
+**Body** (optional): Detailed explanation of what and why (not how)
 
-By contributing (signing off on commits) you agree to license your contribution under the project's license.
+**Footer** (optional): Reference issues, breaking changes
 
----
+**Example:**
 
-## Code of conduct
+```
+feat(rate-limit): add per-connection token bucket
 
-Be respectful and collaborative. See `CODE_OF_CONDUCT.md` (if present) for details. If you encounter harassment or have any community concerns, contact the maintainers privately.
+Implement token bucket algorithm for per-connection rate limiting
+in addition to the existing per-IP limits. This provides more
+granular control over connection rates.
 
----
+Fixes #123
+```
 
-If you prefer, I can:
-- Add a `CONTRIBUTING.md` file to the repo with this text,
-- Add a `CODE_OF_CONDUCT.md` template,
-- Prepare a GitHub Actions CI workflow that runs fmt, clippy and tests on PRs.
+**Commit Message Guidelines:**
+- Use imperative mood: "add feature" not "added feature"
+- Keep subject line under 72 characters
+- Reference issues with `Fixes #123` or `Closes #456`
+- Use `BREAKING CHANGE:` in footer for breaking changes
 
-Tell me which of those you want me to create next and I’ll add them. Thanks again — your contributions help make AegisGate more robust and easier to use.
+### Developer Certificate of Origin
+
+This project uses the Developer Certificate of Origin (DCO). All commits must be signed off to certify that you have the right to submit the code under the project's license.
+
+Sign your commits using the `-s` flag:
+
+```
+git commit -s -m "your commit message"
+```
+
+This adds a `Signed-off-by` line to your commit message:
+
+```
+Signed-off-by: Your Name <your.email@example.com>
+```
+
+By signing off, you certify that you wrote the code or have the right to submit it under the Apache License 2.0.
+
+### Pull Request Process
+
+1. Update documentation and tests as needed
+2. Ensure all tests pass and code passes `cargo fmt` and `cargo clippy`
+3. Sign off on all commits (DCO requirement)
+4. Push your branch to your fork
+5. Open a pull request against the `main` branch
+6. Provide a clear description of the changes and the problem they solve
+7. Link to any related issues
+
+### Pull Request Checklist
+
+- [ ] Code builds without errors
+- [ ] All tests pass
+- [ ] Code is formatted with `cargo fmt`
+- [ ] No clippy warnings
+- [ ] Documentation updated
+- [ ] Commits are signed off (DCO)
+
+## Reporting Issues
+
+### Bug Reports
+
+When reporting bugs, include:
+
+- Steps to reproduce the issue
+- Expected behavior
+- Actual behavior
+- AegisGate version or commit hash
+- Configuration file (redact sensitive information)
+- Relevant logs and error messages
+
+### Feature Requests
+
+When requesting features, include:
+
+- Use case and motivation
+- Proposed solution or API
+- Alternative solutions considered
+- Impact on existing functionality
+
+### Security Issues
+
+Do not report security vulnerabilities through public GitHub issues. Instead, report them through GitHub Security Advisories or contact the maintainers directly.
+
+## Code Review
+
+All submissions require review before being merged. Reviewers will check for:
+
+- Correctness and code quality
+- Test coverage
+- Documentation completeness
+- Performance implications
+- Security considerations
+- Adherence to project conventions
+
+Be responsive to feedback and keep your pull request up to date with the `main` branch.
+
+## Community
+
+- Be respectful and constructive
+- Follow the [Code of Conduct](CODE_OF_CONDUCT.md)
+- Help others when you can
+- Focus on what is best for the project and community
+
+## License
+
+By contributing to AegisGate, you agree that your contributions will be licensed under the Apache License 2.0.
