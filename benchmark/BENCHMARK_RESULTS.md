@@ -6,7 +6,9 @@
 
 ## Executive Summary
 
-AegisGate MQTT proxy demonstrates production-ready performance with minimal overhead compared to direct EMQX connections. Key findings show virtually identical connection handling, excellent QoS 0 throughput, and expected proxy latency for QoS 1 operations.
+AegisGate MQTT proxy demonstrates promising performance for an alpha release, with minimal overhead compared to direct EMQX connections. Key findings show virtually identical connection handling, excellent QoS 0 throughput, and expected proxy latency for QoS 1 operations.
+
+> **Note:** This is an alpha release (v0.1.0-alpha). These benchmarks validate the core proxy architecture and performance characteristics, but the software is not yet recommended for production use.
 
 **Performance Overview:**
 - Connection speed: -0.67% (gradual ramp, 200 connections)
@@ -252,24 +254,26 @@ Post-test cleanup: Verified clean
 
 ## Recommendations
 
-### Deploy AegisGate For:
+> **Alpha Disclaimer:** These recommendations are based on performance benchmarks of the alpha release. AegisGate is not yet recommended for production deployment. This section describes potential use cases once the software reaches stability.
 
-1. **IoT/Sensor Data (QoS 0)**
+### When AegisGate May Be Suitable (Future):
+
+1. **IoT/Sensor Data (QoS 0)** _(alpha validation shows potential)_
    - Excellent throughput (4,142 msg/s)
    - Minimal overhead (-2.47%)
-   - Zero message loss
+   - Zero message loss in tests
    - Acceptable latency (+9ms average)
 
-2. **Mixed Workloads**
+2. **Mixed Workloads** _(alpha validation shows potential)_
    - Reliable concurrent publisher handling
    - Good burst performance
-   - Stable under stress
-   - 100% message delivery
+   - Stable under stress in tests
+   - 100% message delivery in tests
 
-3. **High Connection Counts**
-   - Scales identically to EMQX (150+ burst connections)
+3. **High Connection Counts** _(alpha validation shows potential)_
+   - Scales identically to EMQX (150+ burst connections in tests)
    - Reliable burst handling
-   - Zero connection failures
+   - Zero connection failures in tests
 
 ### Consider Direct EMQX For:
 
@@ -284,20 +288,20 @@ Post-test cleanup: Verified clean
 
 ## Conclusion
 
-AegisGate demonstrates production-ready MQTT proxy performance with minimal overhead:
+AegisGate demonstrates strong MQTT proxy performance for an alpha release, with minimal overhead:
 
 - **Connection speed:** Virtually identical to EMQX (-0.67%)
 - **QoS 0 throughput:** Near-identical (4,142 vs 4,247 msg/s, -2.47%)
 - **QoS 1 latency:** +26ms average, +45ms P99 (acceptable proxy overhead)
 - **Reliability:** Perfect (0% loss, 100% success rate)
 
-The proxy overhead is measurable, predictable, and acceptable for production workloads. High-volume tests confirm consistent behavior under load with zero message loss.
+The proxy overhead is measurable, predictable, and reasonable for a proof-of-concept. High-volume tests confirm consistent behavior under load with zero message loss, validating the core architecture.
 
 ### Key Takeaways
 
 1. **No "magic" performance wins** - AegisGate performs as expected for a well-designed proxy
 2. **Consistent behavior** - Large sample tests show predictable, stable overhead
-3. **Production-ready** - Zero message loss and 100% reliability across all tests
+3. **Reliable core** - Zero message loss and 100% reliability across all tests (alpha validation)
 4. **QoS 0 optimized** - Minimal throughput impact for IoT/sensor workloads
 5. **QoS 1 trade-off** - Additional latency is the expected cost of proxy architecture
 

@@ -14,7 +14,7 @@ Comparative analysis of AegisGate MQTT proxy performance against direct EMQX con
 | QoS 1 P99 Latency | 197.49ms | 152.69ms | +44.80ms | ✓ Pass |
 | Message Loss | 0% | 0% | 0% | ✓ Pass |
 
-**Verdict:** AegisGate demonstrates production-ready performance with minimal proxy overhead.
+**Verdict:** AegisGate demonstrates promising performance for an alpha release, with minimal proxy overhead.
 
 ## Connection Establishment
 
@@ -270,30 +270,32 @@ latency = (receive_time - send_time) * 1000  # milliseconds
 
 ## Use Case Recommendations
 
-### ✓ Recommended for AegisGate
+> **Alpha Disclaimer:** These recommendations are based on performance benchmarks of the alpha release. AegisGate is not yet recommended for production deployment. This section describes potential use cases once the software reaches stability.
 
-**IoT/Sensor Data (QoS 0)**
+### ✓ Potential Use Cases for AegisGate (Future)
+
+**IoT/Sensor Data (QoS 0)** _(alpha validation shows potential)_
 - **Rationale:** Near-identical throughput, minimal overhead
 - **Performance:** 4,142 msg/s sustained (only -2.47% vs direct)
 - **Latency:** +9ms average (acceptable for most IoT use cases)
-- **Reliability:** 0% message loss
+- **Reliability:** 0% message loss in tests
 
-**General Purpose MQTT (Mixed QoS)**
-- **Rationale:** Minimal overhead (1-4%), excellent reliability
+**General Purpose MQTT (Mixed QoS)** _(alpha validation shows potential)_
+- **Rationale:** Minimal overhead (1-4%), excellent reliability in tests
 - **Performance:** 1,609 msg/s QoS 1 with 26ms latency overhead
-- **Reliability:** 100% success rate, 0% message loss
+- **Reliability:** 100% success rate, 0% message loss in tests
 - **Use Cases:** Command & control, telemetry, notifications
 
-**High Connection Scenarios**
-- **Rationale:** Identical connection handling to EMQX
+**High Connection Scenarios** _(alpha validation shows potential)_
+- **Rationale:** Identical connection handling to EMQX in tests
 - **Performance:** 67.72 conn/s gradual, 150 burst with 0 failures
-- **Reliability:** 100% success rate
+- **Reliability:** 100% success rate in tests
 - **Use Cases:** Large device fleets, multi-tenant systems
 
-**Concurrent Publishers**
-- **Rationale:** Reliable handling of multiple simultaneous publishers
+**Concurrent Publishers** _(alpha validation shows potential)_
+- **Rationale:** Reliable handling of multiple simultaneous publishers in tests
 - **Performance:** 60,762 msg/s aggregate publish rate
-- **Reliability:** 0% message loss with 10 concurrent publishers
+- **Reliability:** 0% message loss with 10 concurrent publishers in tests
 - **Use Cases:** Multi-sensor systems, distributed data collection
 
 ### ⚠ Consider Direct EMQX For
@@ -317,7 +319,7 @@ latency = (receive_time - send_time) * 1000  # milliseconds
 
 ## Conclusion
 
-AegisGate demonstrates production-ready performance as an MQTT proxy:
+AegisGate demonstrates strong performance characteristics for an alpha MQTT proxy:
 
 ### Strengths
 
@@ -336,7 +338,9 @@ AegisGate demonstrates production-ready performance as an MQTT proxy:
 
 ### Overall Assessment
 
-Proxy overhead is minimal (0-4% throughput impact) and predictable (9-26ms latency increase). Performance characteristics are well-suited for production deployment in scenarios where authentication, authorization, and centralized control justify the small overhead cost.
+Proxy overhead is minimal (0-4% throughput impact) and predictable (9-26ms latency increase). These benchmark results validate the core architecture and suggest the approach is viable for future production use in scenarios where authentication, authorization, and centralized control justify the small overhead cost.
+
+> **Note:** This is an alpha release (v0.1.0-alpha). While performance is promising, the software is not yet recommended for production deployment.
 
 **Key Insight:** The overhead is not from inefficiency—it's the inherent cost of an additional network hop and protocol translation. AegisGate performs this role efficiently with no unnecessary penalties.
 

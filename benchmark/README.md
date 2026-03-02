@@ -64,6 +64,8 @@ pip3 install paho-mqtt requests
 | QoS 1 P99 Latency | 197.49ms | 152.69ms | +44.80ms |
 | Message Loss | 0% | 0% | Perfect |
 
-AegisGate demonstrates production-ready performance with minimal proxy overhead.
+AegisGate demonstrates promising performance for an alpha release, with minimal proxy overhead.
+
+> **Note:** This is an alpha release (v0.1.0-alpha). These benchmarks validate the core proxy architecture, but the software is not yet recommended for production use.
 
 **Last Updated:** March 2, 2026 15:47 IST
