@@ -238,3 +238,20 @@ docker-compose down
 3. **Network Isolation**: Run AegisGate in a DMZ between untrusted clients and MQTT brokers
 4. **Monitoring**: Set up alerts on rejection metrics to detect attacks
 5. **Regular Updates**: Keep dependencies updated for security patches
+
+## Limitations
+
+- Supported protocols:
+  - MQTT 3.1 and 3.1.1: CONNECT packet validation and proxying are implemented and validated.
+- Not supported (yet):
+  - MQTT 5.0 protocol semantics (properties, reason codes, AUTH exchanges, subscription identifiers, etc.)
+  - TLS / mTLS termination inside the proxy (TLS is planned but not available in the alpha)
+  - Persistent rate-limit storage (current state is in-memory; Redis backend planned)
+  - eBPF fast-path filtering and ML-based anomaly detection (planned)
+  - WebSocket transport and IPv6-specific rate-limit enhancements (planned)
+- Practical implications:
+  - If you require TLS or mTLS today, terminate TLS before AegisGate (use nginx, traefik, HAProxy, or a cloud LB) and forward plaintext MQTT on a private network.
+  - If you rely on MQTT 5 features (properties, response topics, enhanced auth), do not place AegisGate inline until MQTT 5 support is added; alternatively use a TCP pass-through mode (disables packet inspection) if you need transparent forwarding.
+  - Rate-limiting counters are in-memory and will be lost on restart; for persistent counters wait for the Redis backend feature.
+- Where to look:
+  - See the `CHANGELOG.md` Unreleased / Planned section for roadmap items and planned features.
