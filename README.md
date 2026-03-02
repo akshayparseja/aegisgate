@@ -10,6 +10,8 @@
 
 A high-performance, security-focused MQTT proxy gateway built in Rust
 
+📊 **[View Performance Benchmarks →](benchmark/)**
+
 ## Overview
 
 AegisGate sits between MQTT clients and brokers, providing multi-layered security inspection, rate limiting, and protocol validation. Built with async Rust (Tokio), it delivers low-latency proxying while defending against common attack vectors.
