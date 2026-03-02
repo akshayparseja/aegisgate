@@ -55,7 +55,7 @@ features:
   # Toggle Slowloris protection logic (header timeouts / per-connection checks)
   enable_slowloris_protection: true
   # Toggle per-IP token bucket rate limiting
-  enable_rate_limiter: true
+  enable_rate_limiter: false
   # Toggle eBPF fast-path integration (requires additional components)
   enable_ebpf: false
   # Toggle ML-based anomaly detection / inference pipeline
