@@ -10,7 +10,7 @@
 
 A high-performance, security-focused MQTT proxy gateway built in Rust
 
-📊 **[View Performance Benchmarks →](benchmark/)**
+**[View Performance Benchmarks →](benchmark/)**
 
 ## Overview
 
